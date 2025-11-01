@@ -44,7 +44,7 @@ contract CardTimerGame {
 
     constructor() payable {
         // Alle Karten starten bei 1 Ether
-        uint256 initialPrice = 1 ether;
+        uint256 initialPrice = 1 gwei;
 
         // Timer von 2 bis 12 Minuten gleichmäßig verteilen (120s..720s)
         for (uint8 i = 0; i < 12; i++) {
