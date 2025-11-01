@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import contractJson from "./CardTimerGame.json";
+import { ChakraProvider, Box, SimpleGrid, Button, Heading, Text, defaultSystem } from "@chakra-ui/react";
+import { Icon } from "@chakra-ui/react";
+import { FaEthereum, FaClock } from "react-icons/fa";
 
 const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
 
@@ -14,8 +17,8 @@ function App() {
   const [account, setAccount] = useState<string | null>(null);
   const [contract, setContract] = useState<ethers.Contract | null>(null);
   const [message, setMessage] = useState<string>("");
-  const [cards, setCards] = useState<{ id: number; price: string; owner: string | null }[]>(
-    Array.from({ length: 12 }, (_, i) => ({ id: i, price: "0.000000001", owner: "0x0000..." }))
+  const [cards, setCards] = useState<{ id: number; price: string; owner: string | null; duration: number }[]>(
+    Array.from({ length: 12 }, (_, i) => ({ id: i, price: "0.000000001", owner: "0x0000...", duration: i + 1 }))
   );
 
   async function connectWallet() {
@@ -66,6 +69,7 @@ function App() {
         id: i,
         price: ethers.formatEther(card[0]),
         owner: `${card[1].slice(0, 6)}...`,
+        duration: i + 1,
       });
     }
 
@@ -139,56 +143,85 @@ function App() {
     };
   }, [contract]);
 
-  return (
-    <div className="p-6 text-center">
-      <h1 className="text-3xl font-bold mb-4">🃏 Card Timer Game</h1>
+  return ( 
+  
+    <ChakraProvider value={defaultSystem}> 
+      <Box minH="100vh" bg="gray.900" color="white" p={6} textAlign="center">
 
-      <button
-        onClick={connectWallet}
-        className="bg-blue-600 text-white px-4 py-2 rounded"
-      >
-        {account ? `Verbunden: ${account.slice(0, 6)}...` : "Mit MetaMask verbinden"}
-      </button>
+        {/* Header */}
+        <Heading as="h1" size="2xl" mb={4}>
+          🃏 Card Timer Game
+        </Heading>
 
-      {/* Spielstatus-Button */}
-      <div className="mt-4">
-        <button
-          onClick={testContract}
-          className="bg-green-600 text-white px-4 py-2 rounded"
-        >
-          Spielstatus abrufen
-        </button>
-      </div>
+        {/* Wallet verbinden Button */}
+        <Button bg="blue.500" color="white" _hover={{ bg: "blue.600" }} onClick={connectWallet} mb={4}>
+          {account ? `Verbunden: ${account.slice(0, 6)}...` : "Mit MetaMask verbinden"}
+        </Button>
 
-      {/* Message-Anzeige */}
-      <pre className="mt-6 whitespace-pre-wrap">{message}</pre>
+        {/* Spielstatus-Button */}
+        <Box mb={4}>
+          <Button bg="green.500" color="white" _hover={{ bg: "green.600" }} onClick={testContract}>
+            Spielstatus abrufen
+          </Button>
+        </Box>
 
-      {/* Karten-Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-6 justify-center">
-        {cards.map((card) => (
-          <div
-            key={card.id}
-            className="bg-white border rounded-lg shadow-lg w-32 h-44 p-4 flex flex-col justify-between items-center
-                      hover:scale-105 transition-transform duration-200 cursor-pointer"
-          >
-            <div className="text-3xl">🃏</div>
-            <h2 className="text-lg font-semibold mt-2">Karte {card.id}</h2>
-            <p className="text-sm mt-1">Preis: {card.price} ETH</p>
-            <p className="text-xs text-gray-600 mt-1">
-              Besitzer: {card.owner ? card.owner.slice(0, 6) + "..." : "Noch frei"}
-            </p>
-            <button
-              onClick={() => buyCard(card.id, card.price)}
-              disabled={card.owner !== null}
-              className="mt-2 bg-purple-600 text-white px-3 py-1 rounded disabled:opacity-50"
+        {/* Message-Anzeige */}
+        <Box mb={6} whiteSpace="pre-wrap">
+          {message}
+        </Box>
+
+        {/* Karten-Grid */}
+        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 6 }} gap={8} justifyItems="center">
+          {cards.map((card) => (
+            <Box
+              key={card.id}
+              w="200px"
+              h="280px"
+              bg="gray.800"
+              borderRadius="xl"
+              boxShadow="2xl"
+              p={5}
+              display="flex"
+              flexDirection="column"
+              justifyContent="space-between"
+              alignItems="center"
+              _hover={{ transform: "scale(1.08)", boxShadow: "dark-lg" }}
+              transition="all 0.2s ease"
             >
-              Kaufen 💰
-            </button>
-          </div>
-        ))}
-      </div>
+              <Text fontSize="4xl">🃏</Text>
+              <Heading size="md" mt={2}>
+                Karte {card.id + 1}
+              </Heading>
+              <Box textAlign="center" fontSize="md" mt={3}>
+                <Text display="flex" alignItems="center" justifyContent="center">
+                  <Icon as={FaEthereum} color="teal.300" mr={2} />
+                  {card.price} ETH
+                </Text>
+                <Text display="flex" alignItems="center" justifyContent="center" mt={1}>
+                  <Icon as={FaClock} color="yellow.400" mr={2} />
+                  {card.duration} min
+                </Text>
+                <Text color="gray.400" mt={2}>
+                  👤 Besitzer: {card.owner ? card.owner.slice(0, 6) + "..." : "Noch frei"}
+                </Text>
+              </Box>
 
-    </div>
+              <Button
+                mt={3}
+                colorScheme="purple"
+                size="sm"
+                width="100%"
+                onClick={() => buyCard(card.id, card.price)}
+              >
+                Kaufen 💰
+              </Button>
+            </Box>
+          ))}
+        </SimpleGrid>
+
+      </Box>
+    </ChakraProvider>
+
   );
 }
 
