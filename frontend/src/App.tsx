@@ -20,6 +20,10 @@ function App() {
   const [cards, setCards] = useState<{ id: number; price: string; owner: string | null; duration: number }[]>(
     Array.from({ length: 12 }, (_, i) => ({ id: i, price: "0.000000001", owner: "0x0000...", duration: i + 1 }))
   );
+  // global game state
+  const [gameActiveState, setGameActiveState] = useState<boolean | null>(null);
+  const [lastBuyerState, setLastBuyerState] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null); // seconds remaining
 
   async function connectWallet() {
     if (!window.ethereum) {
@@ -76,6 +80,26 @@ function App() {
     setCards(cardArray);
   }
 
+  // Lädt den globalen Spielzustand einmalig (async)
+  async function updateGameStateOnce() {
+    if (!contract) return;
+    try {
+      const active: boolean = await contract.gameActive();
+      const end: bigint = await contract.endTime();
+      const last: string = await contract.lastBuyer();
+
+      setGameActiveState(active);
+      setLastBuyerState(last && last !== ethers.ZeroAddress ? last : null);
+
+      // remaining calculation
+      const now = Math.floor(Date.now() / 1000);
+      const rem = Number(end) > now ? Number(end) - now : 0;
+      setRemaining(active ? rem : 0);
+    } catch (err) {
+      console.error("updateGameStateOnce:", err);
+    }
+  }
+
   async function buyCard(cardId: number, price: string) {
     if (!contract) {
       alert("Bitte zuerst Wallet verbinden!");
@@ -96,10 +120,49 @@ function App() {
     }
   }
 
+  async function claimPrize() {
+    if (!contract) {
+      alert("Bitte zuerst Wallet verbinden!");
+      return;
+    }
+    try {
+      setMessage("Claim wird gesendet... ⏳");
+      const tx = await contract.claimPrize();
+      await tx.wait();
+      setMessage("Claim erfolgreich ✅");
+      // nach claim: Status neu laden
+      await updateGameStateOnce();
+      // evtl. cards neu laden, weil balances sich ändern
+      await loadCards();
+    } catch (err: any) {
+      console.error(err);
+      setMessage(`Fehler beim Claim ❌: ${err?.message || err}`);
+    }
+  }
+
+  async function resetGameUI() {
+    if (!contract) {
+      alert("Bitte zuerst Wallet verbinden!");
+      return;
+    }
+    try {
+      setMessage("Reset wird gesendet... ⏳");
+      const tx = await contract.resetGame();
+      await tx.wait();
+      setMessage("Game zurückgesetzt ✅");
+      await updateGameStateOnce();
+      await loadCards();
+    } catch (err: any) {
+      console.error(err);
+      setMessage(`Fehler beim Reset ❌: ${err?.message || err}`);
+    }
+  }
+
   useEffect(() => {
     if (!contract) return;
 
     loadCards();
+    updateGameStateOnce();
 
     const handleCardBought = (
       cardId: bigint,
@@ -168,6 +231,67 @@ function App() {
         {/* Message-Anzeige */}
         <Box mb={6} whiteSpace="pre-wrap">
           {message}
+        </Box>
+
+        {/* Globaler Spiel-Status / Timer / Claim / Reset */}
+        <Box mb={6} textAlign="center">
+          {gameActiveState === null ? (
+            <Text>Lade Spielstatus...</Text>
+          ) : gameActiveState ? (
+            remaining !== null && remaining > 0 ? (
+              // Timer läuft
+              <Box>
+                <Text fontSize="lg" fontWeight="semibold" color="blue.300">
+                  Runde läuft — Zeit verbleibend:
+                </Text>
+                <Heading size="md" mt={2} color="blue.200">
+                  {String(Math.floor((remaining || 0) / 60)).padStart(2, "0")}:
+                  {String((remaining || 0) % 60).padStart(2, "0")}
+                </Heading>
+                <Text fontSize="sm" color="gray.400" mt={1}>
+                  Letzter Käufer: {lastBuyerState ? `${lastBuyerState.slice(0, 6)}...` : "—"}
+                </Text>
+              </Box>
+            ) : (
+              // Runde abgelaufen -> Claim möglich
+              <Box>
+                <Text fontSize="lg" fontWeight="semibold" color="yellow.300">
+                  Runde abgelaufen — Claim verfügbar
+                </Text>
+                <Text fontSize="sm" color="gray.400" mt={1}>
+                  Gewinner (letzter Käufer): {lastBuyerState ? `${lastBuyerState}` : "—"}
+                </Text>
+                <Button
+                  colorScheme="yellow"
+                  mt={3}
+                  size="lg"
+                  fontWeight="bold"
+                  onClick={claimPrize}
+                >
+                  💰 Claim Prize
+                </Button>
+              </Box>
+            )
+          ) : (
+            // Spiel inaktiv -> Reset möglich
+            <Box>
+              <Text fontSize="lg" fontWeight="semibold" color="red.300">
+                Keine aktive Runde
+              </Text>
+              <Text fontSize="sm" color="gray.400" mt={1}>
+                Wenn Runde bereits geclaimed wurde, kannst du das Spiel zurücksetzen.
+              </Text>
+              <Button
+                colorScheme="red"
+                mt={3}
+                size="lg"
+                fontWeight="bold"
+                onClick={resetGameUI}
+              >
+                🔄 Reset Game
+              </Button>
+            </Box>
+          )}
         </Box>
 
         {/* Karten-Grid */}

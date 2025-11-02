@@ -19,6 +19,7 @@ contract CardTimerGame {
     address public lastBuyer;        // letzter Käufer
     uint8 public lastCardId;         // zuletzt gekaufte Karte
     bool public gameActive;          // ob eine Runde läuft
+    uint256 private _initialPrice;  // Startpreis einer Karte
 
     // Reentrancy-Guard
     uint256 private _locked = 1;
@@ -44,17 +45,17 @@ contract CardTimerGame {
 
     constructor() payable {
         // Alle Karten starten bei 1 Ether
-        uint256 initialPrice = 1 gwei;
+        _initialPrice = 1 gwei;
 
-        // Timer von 2 bis 12 Minuten gleichmäßig verteilen (120s..720s)
+        // Timer von 1 bis 12 Minuten gleichmäßig verteilen (60s..720s)
         for (uint8 i = 0; i < 12; i++) {
             uint256 durationSeconds = 60 + (uint256(i) * 60); // 600 = 720 - 120
             cards[i] = Card({
-                price: initialPrice,
+                price: _initialPrice,
                 owner: address(0),
                 duration: durationSeconds
             });
-            emit CardPriceSet(i, initialPrice, durationSeconds);
+            emit CardPriceSet(i, _initialPrice, durationSeconds);
         }
 
         gameActive = false;
@@ -73,15 +74,16 @@ contract CardTimerGame {
         }
 
         Card storage c = cards[cardId];
-        uint256 price = c.price;
-        require(msg.value >= price, "Insufficient payment");
+        uint256 oldPrice = c.price / 2;
+        uint256 currentPrice = c.price;
+        require(msg.value >= currentPrice, "Insufficient payment");
 
         address prevOwner = c.owner;
         uint256 payout = 0;
 
         // Vorbesitzer bekommt 150% seines damaligen Preises
         if (prevOwner != address(0)) {
-            payout = (price * 3) / 2;
+            payout = (oldPrice * 3) / 2;
             // Wenn zu wenig Balance im Vertrag ist, könnte der neue Käufer das decken (aber hier safe, weil Preis >= payout / 1.5)
             if (address(this).balance >= payout) {
                 (bool sent, ) = prevOwner.call{value: payout}("");
@@ -91,7 +93,7 @@ contract CardTimerGame {
 
         // Neuer Besitzer & Preis verdoppeln
         c.owner = msg.sender;
-        c.price = price * 2;
+        c.price = currentPrice * 2;
 
         // Timer resetten
         endTime = block.timestamp + c.duration;
@@ -100,13 +102,13 @@ contract CardTimerGame {
         gameActive = true;
 
         // Überzahlung rückerstatten
-        uint256 excess = msg.value - price;
+        uint256 excess = msg.value - currentPrice;
         if (excess > 0) {
             (bool refunded, ) = msg.sender.call{value: excess}("");
             require(refunded, "Refund failed");
         }
 
-        emit CardBought(cardId, msg.sender, prevOwner, price, c.price, endTime);
+        emit CardBought(cardId, msg.sender, prevOwner, currentPrice, c.price, endTime);
     }
 
     /// @notice Timer abgelaufen → letzter Käufer kann den gesamten Pot beanspruchen
@@ -135,11 +137,12 @@ contract CardTimerGame {
     /// @notice Reset des Spiels – setzt Kartenpreise auf 1 Ether und löscht Besitzer
     function resetGame() external nonReentrant {
         require(!gameActive, "Game still active");
-        uint256 initialPrice = 1 ether;
+
         for (uint8 i = 0; i < 12; i++) {
-            cards[i].price = initialPrice;
+            cards[i].price = _initialPrice;
             cards[i].owner = address(0);
         }
+
         emit GameReset();
     }
 
