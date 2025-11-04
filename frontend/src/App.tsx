@@ -4,6 +4,7 @@ import contractJson from "./CardTimerGame.json";
 import { ChakraProvider, Box, SimpleGrid, Button, Heading, Text, defaultSystem } from "@chakra-ui/react";
 import { Icon } from "@chakra-ui/react";
 import { FaEthereum, FaClock } from "react-icons/fa";
+import AnimatedCard from "./AnimatedCard";
 
 const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
 
@@ -23,7 +24,17 @@ function App() {
   // global game state
   const [gameActiveState, setGameActiveState] = useState<boolean | null>(null);
   const [lastBuyerState, setLastBuyerState] = useState<string | null>(null);
-  const [remaining, setRemaining] = useState<number | null>(null); // seconds remaining
+  // Timer
+  const [endTime, setEndTime] = useState<number | null>(null); // Sekunden (Unix)
+  const [timeLeft, setTimeLeft] = useState<number | null>(null); // verbleibende Sekunden
+
+  async function checkWalletConnection() {
+    if (!window.ethereum) return null;
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const accounts = await provider.send("eth_accounts", []);
+    return accounts.length > 0 ? accounts[0] : null;
+  }
 
   async function connectWallet() {
     if (!window.ethereum) {
@@ -55,9 +66,18 @@ function App() {
     try {
       const active: boolean = await contract.gameActive();
       const endTime: bigint = await contract.endTime();
-      const endDate = new Date(Number(endTime) * 1000).toLocaleString();
+      const end = Number(endTime) * 1000;
+      const endDate = new Date(end).toLocaleString();
+
       setMessage(`Spiel aktiv: ${active ? "✅ Ja" : "❌ Nein"}\nEnde: ${endDate}`);
-     } catch (err) {
+
+      if (active && end > Date.now()) {
+        setTimeLeft(Math.floor((end - Date.now()) / 1000));
+      } else {
+        setTimeLeft(null);
+      }
+
+    } catch (err) {
       console.error(err);
       setMessage("Fehler beim Aufruf ❌");
     }
@@ -83,21 +103,15 @@ function App() {
   // Lädt den globalen Spielzustand einmalig (async)
   async function updateGameStateOnce() {
     if (!contract) return;
-    try {
-      const active: boolean = await contract.gameActive();
-      const end: bigint = await contract.endTime();
-      const last: string = await contract.lastBuyer();
 
-      setGameActiveState(active);
-      setLastBuyerState(last && last !== ethers.ZeroAddress ? last : null);
+    const active = await contract.gameActive();
+    const endTimeBn = await contract.endTime();
+    const lastBuyer = await contract.lastBuyer();
 
-      // remaining calculation
-      const now = Math.floor(Date.now() / 1000);
-      const rem = Number(end) > now ? Number(end) - now : 0;
-      setRemaining(active ? rem : 0);
-    } catch (err) {
-      console.error("updateGameStateOnce:", err);
-    }
+    const end = Number(endTimeBn);
+    setGameActiveState(active);
+    setLastBuyerState(lastBuyer);
+    setEndTime(end); // richtige Zahl
   }
 
   async function buyCard(cardId: number, price: string) {
@@ -110,6 +124,8 @@ function App() {
       // price ist jetzt als String in ETH übergeben, wir müssen es in Wei konvertieren
       const tx = await contract.buyCard(cardId, { value: ethers.parseEther(price) });
       setMessage(`Karte ${cardId} wird gekauft... ⏳`);
+
+      tx.w
 
       await tx.wait();
       setMessage(`Karte ${cardId} erfolgreich gekauft ✅`);
@@ -186,6 +202,9 @@ function App() {
         )
       );
 
+      // ⏳ Timer mit neuem Endzeitpunkt aktualisieren
+      setEndTime(Number(newEndTime)); // Timer sofort auf neue Zeit synchronisieren
+
       setMessage(
         `🃏 Karte ${id} wurde ${previousOwner} abgekauft von ${buyer.slice(0, 6)}... für ${ethers.formatEther(
           paidAmount
@@ -205,6 +224,54 @@ function App() {
       }
     };
   }, [contract]);
+
+  // ⏱ Stabiler Countdown basierend auf endTime (unabhängig vom Browser-Fokus)
+  useEffect(() => {
+    if (!endTime) return;
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor(endTime - Date.now() / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [endTime]);
+
+  useEffect(() => {
+    checkWalletConnection().then(account => {
+      if (account) {
+        connectWallet();
+      }
+    });
+  }, []);
+
+  // Account Changed
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      setMessage(`Account gewechselt`);
+      
+      if (accounts.length === 0) {
+        // Nutzer hat alle Accounts getrennt
+        setAccount(null);
+        setContract(null);
+        setMessage("Wallet getrennt");
+      } else {
+        connectWallet();
+      }
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+    };
+  }, []);
 
   return ( 
   
@@ -238,15 +305,15 @@ function App() {
           {gameActiveState === null ? (
             <Text>Lade Spielstatus...</Text>
           ) : gameActiveState ? (
-            remaining !== null && remaining > 0 ? (
+            timeLeft !== null && timeLeft > 0 ? (
               // Timer läuft
               <Box>
                 <Text fontSize="lg" fontWeight="semibold" color="blue.300">
                   Runde läuft — Zeit verbleibend:
                 </Text>
                 <Heading size="md" mt={2} color="blue.200">
-                  {String(Math.floor((remaining || 0) / 60)).padStart(2, "0")}:
-                  {String((remaining || 0) % 60).padStart(2, "0")}
+                  {String(Math.floor((timeLeft || 0) / 60)).padStart(2, "0")}:
+                  {String((timeLeft || 0) % 60).padStart(2, "0")}
                 </Heading>
                 <Text fontSize="sm" color="gray.400" mt={1}>
                   Letzter Käufer: {lastBuyerState ? `${lastBuyerState.slice(0, 6)}...` : "—"}
@@ -261,13 +328,7 @@ function App() {
                 <Text fontSize="sm" color="gray.400" mt={1}>
                   Gewinner (letzter Käufer): {lastBuyerState ? `${lastBuyerState}` : "—"}
                 </Text>
-                <Button
-                  colorScheme="yellow"
-                  mt={3}
-                  size="lg"
-                  fontWeight="bold"
-                  onClick={claimPrize}
-                >
+                <Button bg="yellow.500" color="white" mt={3} size="lg" fontWeight="bold" _hover={{ bg: "yellow.600" }} onClick={claimPrize}>
                   💰 Claim Prize
                 </Button>
               </Box>
@@ -282,12 +343,7 @@ function App() {
                 Wenn Runde bereits geclaimed wurde, kannst du das Spiel zurücksetzen.
               </Text>
               <Button
-                colorScheme="red"
-                mt={3}
-                size="lg"
-                fontWeight="bold"
-                onClick={resetGameUI}
-              >
+                bg="red.500" mt={3} size="lg" fontWeight="bold" _hover={{ bg: "red.600" }} onClick={resetGameUI}>
                 🔄 Reset Game
               </Button>
             </Box>
@@ -297,21 +353,7 @@ function App() {
         {/* Karten-Grid */}
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 6 }} gap={8} justifyItems="center">
           {cards.map((card) => (
-            <Box
-              key={card.id}
-              w="200px"
-              h="280px"
-              bg="gray.800"
-              borderRadius="xl"
-              boxShadow="2xl"
-              p={5}
-              display="flex"
-              flexDirection="column"
-              justifyContent="space-between"
-              alignItems="center"
-              _hover={{ transform: "scale(1.08)", boxShadow: "dark-lg" }}
-              transition="all 0.2s ease"
-            >
+            <AnimatedCard key={card.id}>
               <Text fontSize="4xl">🃏</Text>
               <Heading size="md" mt={2}>
                 Karte {card.id + 1}
@@ -339,7 +381,7 @@ function App() {
               >
                 Kaufen 💰
               </Button>
-            </Box>
+            </AnimatedCard>
           ))}
         </SimpleGrid>
 
