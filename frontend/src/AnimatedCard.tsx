@@ -20,24 +20,30 @@ const AnimatedCard: React.FC<AnimatedCardProps> = ({ children }) => (
     borderRadius="xl"
     background="linear-gradient(270deg, #ff00cc, #3333ff, #00ffcc)"
     backgroundSize="400% 400%"
-    animation={`${pulseGradient} 10s ease infinite`}
+    animation={`${pulseGradient} 5s ease infinite`}
     w="220px"
     h="300px"
-    boxShadow="2xl"
-    display="flex"
-    flexDirection="column"
-    justifyContent="space-between"
-    alignItems="center"
-    _hover={{ transform: "scale(1.08)", boxShadow: "dark-lg" }}
-    transition="all 0.2s ease"
+    transition="transform 0.3s ease, box-shadow 0.3s ease"
+    _hover={{
+      transform: "scale(1.06)",
+      boxShadow: "0 0 25px rgba(255, 0, 204, 0.5)",
+    }}
   >
     <Box
       bg="gray.800"
       borderRadius="xl"
-      p={4}
-      height="100%"
-      width="100%"
-      textAlign="center"
+      h="100%"
+      w="100%"
+      p={5}
+      display="flex"
+      flexDirection="column"
+      justifyContent="space-between"
+      alignItems="center"
+      boxShadow="xl"
+      transition="background 0.3s ease, box-shadow 0.3s ease"
+      _hover={{
+        boxShadow: "0 0 20px rgba(0, 255, 255, 0.4)",
+      }}
     >
       {children}
     </Box>

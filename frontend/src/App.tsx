@@ -351,7 +351,13 @@ function App() {
         </Box>
 
         {/* Karten-Grid */}
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 6 }} gap={8} justifyItems="center">
+        <SimpleGrid 
+          columns={{ base: 1, sm: 2, md: 3, lg: 3, xl: 6 }}
+          gap={{ base: 4, sm: 6, md: 8, lg: 10 }} // auf großen Bildschirmen wieder kleiner
+          justifyItems="center"
+          maxW="1800px" // optional: das Grid zentrieren
+          mx="auto"
+        >
           {cards.map((card) => (
             <AnimatedCard key={card.id}>
               <Text fontSize="4xl">🃏</Text>
