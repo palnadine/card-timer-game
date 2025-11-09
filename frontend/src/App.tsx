@@ -186,6 +186,7 @@ function App() {
 
       // ⏳ Timer mit neuem Endzeitpunkt aktualisieren
       setEndTime(Number(newEndTime)); // Timer sofort auf neue Zeit synchronisieren
+      setGameActiveState(true);       // Spiel ist jetzt aktiv
 
       setMessage(
         `🃏 Karte ${id} wurde ${previousOwner} abgekauft von ${buyer.slice(0, 6)}... für ${ethers.formatEther(
