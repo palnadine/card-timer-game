@@ -114,7 +114,7 @@ contract CardTimerGame {
     /// @notice Timer abgelaufen → letzter Käufer kann den gesamten Pot beanspruchen
     function claimPrize() external nonReentrant {
         require(gameActive, "No active game");
-        require(block.timestamp >= endTime, "Timer not expired");
+        require(block.timestamp > endTime, "Timer not expired");
         require(lastBuyer != address(0), "No buyer recorded");
 
         uint256 pot = address(this).balance;
@@ -123,10 +123,7 @@ contract CardTimerGame {
         address winner = lastBuyer;
 
         // Zustand zurücksetzen, bevor Ether versendet wird
-        gameActive = false;
-        lastBuyer = address(0);
-        endTime = 0;
-        lastCardId = 0;
+        _resetGame();
 
         (bool sent, ) = winner.call{value: pot}("");
         require(sent, "Prize transfer failed");
@@ -135,13 +132,16 @@ contract CardTimerGame {
     }
 
     /// @notice Reset des Spiels – setzt Kartenpreise auf 1 Ether und löscht Besitzer
-    function resetGame() external nonReentrant {
-        require(!gameActive, "Game still active");
-
+    function _resetGame() private {
         for (uint8 i = 0; i < 12; i++) {
             cards[i].price = _initialPrice;
             cards[i].owner = address(0);
         }
+
+        gameActive = false;
+        lastBuyer = address(0);
+        endTime = 0;
+        lastCardId = 0;
 
         emit GameReset();
     }
