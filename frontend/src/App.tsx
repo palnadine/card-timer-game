@@ -156,24 +156,6 @@ function App() {
     }
   }
 
-  async function resetGameUI() {
-    if (!contract) {
-      alert("Bitte zuerst Wallet verbinden!");
-      return;
-    }
-    try {
-      setMessage("Reset wird gesendet... ⏳");
-      const tx = await contract.resetGame();
-      await tx.wait();
-      setMessage("Game zurückgesetzt ✅");
-      await updateGameStateOnce();
-      await loadCards();
-    } catch (err: any) {
-      console.error(err);
-      setMessage(`Fehler beim Reset ❌: ${err?.message || err}`);
-    }
-  }
-
   useEffect(() => {
     if (!contract) return;
 
@@ -334,18 +316,14 @@ function App() {
               </Box>
             )
           ) : (
-            // Spiel inaktiv -> Reset möglich
+            // Spiel inaktiv – wartet auf neue Runde
             <Box>
               <Text fontSize="lg" fontWeight="semibold" color="red.300">
                 Keine aktive Runde
               </Text>
               <Text fontSize="sm" color="gray.400" mt={1}>
-                Wenn Runde bereits geclaimed wurde, kannst du das Spiel zurücksetzen.
+                Das Spiel wurde automatisch zurückgesetzt. Eine neue Runde startet, sobald jemand eine Karte kauft.
               </Text>
-              <Button
-                bg="red.500" mt={3} size="lg" fontWeight="bold" _hover={{ bg: "red.600" }} onClick={resetGameUI}>
-                🔄 Reset Game
-              </Button>
             </Box>
           )}
         </Box>
