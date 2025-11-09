@@ -352,7 +352,7 @@ function App() {
 
         {/* Karten-Grid */}
         <SimpleGrid 
-          columns={{ base: 1, sm: 2, md: 3, lg: 3, xl: 6 }}
+          columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 6 }}
           gap={{ base: 4, sm: 6, md: 8, lg: 10 }} // auf großen Bildschirmen wieder kleiner
           justifyItems="center"
           maxW="1800px" // optional: das Grid zentrieren
